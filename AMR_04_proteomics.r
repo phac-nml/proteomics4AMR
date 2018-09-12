@@ -273,7 +273,8 @@ expNames<- unique(evi$Experiment) # this is the number of replicates
 
 
 ### the few peptides only
-targetPep<-c("YHPHGDIAVYDALVR","YHPHGDTAVYDALVR","IALDNIDK","IALDNIDEVIALIK","IMAIIPTTDFDESK")
+targetPep<-c("IMAIIPTTDFDESK","YHPHGDTAVYDALVR","YHPHGDIAVYDALVR","IALDNIDEVIALIK","IALDNIDK") 
+#targetPep<-c("YHPHGDIAVYDALVR","YHPHGDTAVYDALVR","IALDNIDK","IALDNIDEVIALIK","IMAIIPTTDFDESK") 
 #targetPep<-c("YHPHGDIAVYDALVR","IALDNIDK","IMAIIPTTDFDESK")
 evi.s<-evi[evi$Sequence%in% targetPep,]
 pepl2i<-t(sapply(unique(evi.s$Sequence), toPeptideTable, dat0=evi.s, expNames=expNames))
@@ -301,7 +302,7 @@ pdf("Fig2_heatmap_AMR_peptide_levels_new_201807_scalematch.pdf", width=8, height
 		main="Peptide log2 intensity: 3 examples for gyrA", col= heatmapcol,
 		breaks=heatmapcolVal,
 		cexCol=1,cexRow=1,
-		sepwidth=c(0.1,0.05),sepcolor=c("white"),colsep=c(6,12,18),rowsep=c(2,4),
+		sepwidth=c(0.1,0.05),sepcolor=c("white"),colsep=c(6,12,18),rowsep=c(1,3),
 		dendrogram = "none", Colv = FALSE, Rowv = FALSE, 
 		lhei = c(1.2,1.8))
 	
@@ -316,7 +317,7 @@ pdf("Fig2_heatmap_AMR_peptide_levels_new_201807_scalematch.pdf", width=8, height
 		sepwidth=c(0.1,0.05),
          sepcolor=c("darkgray"),#,
 		colsep=c(6,12,18),
-		rowsep=c(2,4),
+		rowsep=c(1,3),
 		dendrogram = "none", Colv = FALSE, Rowv = FALSE, 
 		lhei = c(1.2,1.8))
 		
