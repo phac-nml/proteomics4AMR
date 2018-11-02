@@ -29,7 +29,8 @@ fNames<-gsub("_results_tab.txt","",rfgene)
 rfgene<-paste(rfFolder,rfgene,sep="\\")
 rfpoint<-paste(rfFolder,rfpoint,sep="\\")
 
-	
+cbbPalette <- c( "#E69F00", "#56B4E9", "#CC79A7", "#009E73", "#0072B2", "#D55E00","#000000") #, "#F0E442" yellow
+
 	
 	
 	

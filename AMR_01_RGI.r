@@ -21,21 +21,22 @@ library(reshape2)
 library(gplots)
 
 rgiFolder="RGI"
-jsons<-list.files(rgiFolder,pattern=".json.txt|rgiSummary_|coding.txt.txt$")
-jsonsNames<-gsub(".json.txt|.fasta.json.txt|rgiSummary_|.txt|_coding","",jsons)
+jsons<-list.files(rgiFolder,pattern=".fasta.txt|.json.txt|rgiSummary_|coding.txt.txt$")
+jsonsNames<-gsub(".fasta.txt|.json.txt|.fasta.json.txt|rgiSummary_|.txt|_coding","",jsons)
 jsons<-paste(rgiFolder,jsons,sep="\\")
+cbbPalette <- c( "#E69F00", "#56B4E9", "#CC79A7", "#009E73", "#0072B2", "#D55E00","#000000") #, "#F0E442" yellow
 
 	
 
 #### read jsons
 rgi<-lapply(jsons, function(json){
 	print(".")
-	read.table(json, sep="\t", header=T, as.is=T, comment.char="") #, comment.char="" as the new output from CARD includes '#' character
+	read.table(json, sep="\t", header=T, as.is=T,quote="", comment.char="") #, comment.char="" as the new output from CARD includes '#' character
 })
 names(rgi)=jsonsNames
-rgi$'01-1512'<-rbind(rgi$'01-1512',rgi$'01-1512_plasmid_pCj1')
-rgi$'00-0949'<-rbind(rgi$'00-0949',rgi$'00-0949_plasmid_pTet')
-rgi<-rgi[!names(rgi)%in%c('01-1512_plasmid_pCj1','00-0949_plasmid_pTet')]
+	#rgi$'01-1512'<-rbind(rgi$'01-1512',rgi$'01-1512_plasmid_pCj1')
+	#rgi$'00-0949'<-rbind(rgi$'00-0949',rgi$'00-0949_plasmid_pTet')
+	#rgi<-rgi[!names(rgi)%in%c('01-1512_plasmid_pCj1','00-0949_plasmid_pTet')]
 
 #### to data frame, long format
 rgidf<- ldply(rgi, data.frame)
@@ -65,7 +66,6 @@ bestCate<-t(dcast(rgidf, .id~Best_Hit_ARO, value.var = "Cut_Off", fun.aggregate 
 colnames(bestCate)=bestCate[1,]
 bestCate<-bestCate[-1,]
 bestCate=gsub("Strict","*",gsub("Perfect","**",bestCate))
-cbbPalette <- c( "#E69F00", "#56B4E9", "#CC79A7", "#009E73", "#0072B2", "#D55E00","#000000") #, "#F0E442" yellow
 
 	 
 pdf("Fig1A_Heatmap_summary_AMR_CARD_RGI_201806.pdf", width=6) ## margin changed from 5 to 7 with 00-, 01- for campy

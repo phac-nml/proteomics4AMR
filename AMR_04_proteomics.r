@@ -110,14 +110,8 @@ if(nrow(modDatList.s$dat)>=100){
  
 amrDat<-dat4statFull[amrs,]
 amrDat$Majority.protein.IDs2<-gsub("CampylobacterjejunigyrAconferringresistancetofluoroquinolones","gyrA mutant",
-	gsub("EnterococcusfaeciumEF-TumutantsconferringresistancetoGE2270A","EF-Tu mutant",
-	gsub("MycobacteriumtuberculosisrpsLmutationsconferringresistancetoStreptomycin","rpsL mutant",
-	gsub("PlanobisporaroseaEF-TumutantsconferringresistancetoinhibitorGE2270A;StreptomycescinnamoneusEF-Tumutantsconferringresistancetoelfamycin","EF-Tu mutant",
-	gsub("StaphylococcusaureusrpoCconferringresistancetodaptomycin","rpoC mutant",
-	gsub("HaemophilusparainfluenzaegyrAconferringresistancetofluoroquinolones","gyrA mutant Haemophiluspara",
-	gsub("StaphylococcusaureusmurAwithmutationconferringresistancetofosfomycin","murA mutant",
 	gsub("tetO;gi\\|756095536\\|gb\\|AJK83773.1\\|","tetO",
-	amrDat$Majority.protein.IDs))))))))
+	amrDat$Majority.protein.IDs))
 amrDat$Majority.protein.IDs2<-sapply(strsplit(amrDat$Majority.protein.IDs2,";"), function(y)y[length(y)])
 
 amrDat.s<-data.matrix(amrDat[,colnames(amrDat)%in%c(pheno$Name, paste0("X",pheno$Name))])
@@ -128,7 +122,7 @@ colnames(amrDat.s)=gsub("^X","",colnames(amrDat.s))
 ##################
 ###### Protein abundance
 ##################
-amrDat<-dat4statFull[c(which(amrs& nchar(dat4statFull$Majority.protein.IDs)<40)),]
+amrDat<-dat4statFull[which(amrs),]
 amrDat$Majority.protein.IDs<-gsub("tetO;gi\\|756095536\\|gb\\|AJK83773.1\\|", "gi\\|756095536\\|gb\\|AJK83773.1\\;tetO",gsub("Q03470","gyrA",gsub("CampylobacterjejunigyrAconferringresistancetofluoroquinolones","gyrA mutant",amrDat$Majority.protein.IDs)))
 
 amrDat$Majority.protein.IDs2<-sapply(strsplit(amrDat$Majority.protein.IDs,";"), function(y)y[length(y)])
