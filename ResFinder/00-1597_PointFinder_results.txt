@@ -1,0 +1,2 @@
+Mutation	Nucleotide change	Amino acid change	Resistance	PMID
+gyrA p.T86I	ACA -> ATA	T -> I	Quinolone, high level resistance nalidixic and ciprofloxacin	11266291

@@ -1,0 +1,46 @@
+Aminoglycoside
+No resistance genes found.
+
+Beta-lactam
+Resistance gene	Identity	Query/HSP	Contig	Position in contig	Phenotype	Accession no.
+blaOXA-450	99.87	774/774	NODE_3_length_156151_cov_156.879237	33735..34508		KR061502
+
+Colistin
+No resistance genes found.
+
+Fluoroquinolone
+No resistance genes found.
+
+Fosfomycin
+No resistance genes found.
+
+Fusidic Acid
+No resistance genes found.
+
+Glycopeptide
+No resistance genes found.
+
+MLS - Macrolide, Lincosamide and Streptogramin B
+No resistance genes found.
+
+Nitroimidazole
+No resistance genes found.
+
+Oxazolidinone
+No resistance genes found.
+
+Phenicol
+No resistance genes found.
+
+Rifampicin
+No resistance genes found.
+
+Sulphonamide
+No resistance genes found.
+
+Tetracycline
+No resistance genes found.
+
+Trimethoprim
+No resistance genes found.
+
