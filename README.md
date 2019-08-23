@@ -11,7 +11,7 @@ Both genomics and proteomics datasets on four Campylobacter jejuni isolates were
 1. contigsFromSpades: Fastq files were downloaded from NCBI and reanalyzed with SPAdes 3.11.1 tool to obtain contigs with no minimum length cut-off. Contigs from the isolates are stored here.<br />
 2. RGI: Genomic AMR detection results from RGI	v4.1.0 tool <br />
 3. ResFinder: Genomic AMR detection results from ResFinder 3.1 tool <br />
-4. MaxQuant: Results from reanalyzing data on MassIVE MSV000081410 https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?task=0efcd5aed02c4abc98e93571dbac2b6d<br />
+4. MaxQuant: Results from reanalyzing proteomics data on MassIVE MSV000081410 https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?task=0efcd5aed02c4abc98e93571dbac2b6d<br />
     - ExperimentalSetup.txt: The corresponding iTRAQ labels of the isolates within each data<br />
     - proteinGroups.txt: Protein abundance reported by MaxQuant <br />
     
