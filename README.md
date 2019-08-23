@@ -1,4 +1,4 @@
-##  proteomics4AMR ## 
+##  Proteomics AMR dtection ## 
 
 ### The project contains scripts for the manuscript on AMR inference from proteomics.<br />
 1. AMR_00_main.r is the main script that sources scripts for different components in the manuscript.<br />
