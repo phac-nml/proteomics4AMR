@@ -7,7 +7,7 @@
 4. AMR_03_functions.r and AMR_04_proteomics.r process and analyze labelled LC-MS/MS proteomics data from MaxQuant output of searches on the CARD (The Comprehensive Antibiotic Resistance Database) and SwissProt databases.<br />
 
 ### The four folders contain data processed by each tool. <br />
-Both genomics and proteomics datasets on four Campylobacter jejuni isolates were previously published in Clart et al. PLoS One 2018 https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0190836<br />
+Both genomics and proteomics datasets on four Campylobacter jejuni isolates were previously published in Clark et al. PLoS One 2018 https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0190836<br />
 1. contigsFromSpades: Fastq files were downloaded from NCBI and reanalyzed with SPAdes 3.11.1 tool to obtain contigs with no minimum length cut-off. Contigs from the isolates are stored here.<br />
 2. RGI: Genomic AMR detection results from RGI	v4.1.0 tool <br />
 3. ResFinder: Genomic AMR detection results from ResFinder 3.1 tool <br />
