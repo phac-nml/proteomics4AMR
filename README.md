@@ -1,5 +1,5 @@
 ##  proteomics4AMR ## 
------------
+
 ### The project contains scripts for the manuscript on AMR inference from proteomics.<br />
 1. AMR_00_main.r is the main script that sources scripts for different components in the manuscript.<br />
 2. AMR_01_RGI.r summarizes results for isolates from RGI (Resistance Gene Identifier).<br />
@@ -18,7 +18,7 @@ Both genomics and proteomics datasets on four Campylobacter jejuni isolates were
     
 
 ## Legal ##
------------
+
 
 Copyright Government of Canada 2018
 
@@ -36,7 +36,7 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.
 
 ## Contact ##
--------------
+
 
 **Julie Chih-yu Chen**: chih-yu.chen@canada.ca
  
