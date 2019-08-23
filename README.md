@@ -14,6 +14,7 @@ Both genomics and proteomics datasets on four Campylobacter jejuni isolates were
 4. MaxQuant: Results from reanalyzing proteomics data on MassIVE MSV000081410 https://massive.ucsd.edu/ProteoSAFe/dataset.jsp?task=0efcd5aed02c4abc98e93571dbac2b6d<br />
     - ExperimentalSetup.txt: The corresponding iTRAQ labels of the isolates within each data<br />
     - proteinGroups.txt: Protein abundance reported by MaxQuant <br />
+    - evidence.zip: Abundance at peptide level reported by MaxQuant <br />
     
 
 ## Legal ##
