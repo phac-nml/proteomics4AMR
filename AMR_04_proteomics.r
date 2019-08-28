@@ -1,4 +1,4 @@
-#Copyright Government of Canada 2018
+#Copyright Government of Canada 2019
 #
 #"Written by: Julie Chih-yu Chen @ National Microbiology Laboratory, Public Health Agency of Canada"
 #
@@ -16,26 +16,25 @@
 
 #######################################################
 ####
-#### proteomics data: from maxQuant +CARD search
+#### proteomics data: from maxQuant + CARD search
 #### 
 #######################################################
 
 require(reshape2)
 require(gplots)
 require(limma)
+require(ggplot2)
 
-
+### load files
 maxQuantDir="MaxQuant"
 mfile=paste(maxQuantDir,"proteinGroups.txt",sep="\\")
 expFile=paste(maxQuantDir,"ExperimentalSetup.txt",sep="\\")
 eviFile=paste(maxQuantDir,"evidence.txt",sep="\\")
+maxQuantDir=paste0(maxQuantDir,"/")
 
-
+### param & color definition
 perspective="expression" ;datType="labeled"
-cbbPalette <- c( "#E69F00", "#56B4E9", "#CC79A7", "#009E73", "#0072B2", "#D55E00","#000000") #, "#F0E442" yellow
-
-
-
+cbbPalette <- c( "#E69F00", "#56B4E9", "#CC79A7", "#009E73", "#0072B2", "#D55E00","#000000") 
 heatmapcol=colorRampPalette(c("white","yellow","darkgoldenrod1","red"),bias=1.5)(50)
 heatmapcolVal=seq(2,17.5,length=51)
 	
@@ -47,35 +46,58 @@ rownames(expSetup)=expSetup$Name
 
 colPrefix="Reporter.intensity.corrected\\."
 modname=""
+fileNameAdd=paste(datType,perspective,modname,sep="_")
+
 modTable<-read.table(mfile, sep="\t", header=T, quote = "", as.is=T)
 
+### getting column ids & sample names
+sampDatCols<- unique(sort(unlist(lapply(expSetup$Name,function(y){ grep(y,colnames(modTable))}))))
+intenColID<-intersect(grep(colPrefix,colnames(modTable)),sampDatCols)
+sampleNames<-gsub(colPrefix,"",colnames(modTable)[intenColID])
+pheno=expSetup[sampleNames,]
+
+
+### getting revData for distribution screening
+revDat<-modTable[modTable$Reverse=="+",]  ## saving revData
+revDats<- data.matrix(revDat[,intenColID])
+
+### setting the protein presence threshold to 95 percentile of abundance for reversed proteins
+revThreshPerc=0.95
+revThresh=quantile(as.vector(revDats), probs=revThreshPerc)
+print(revThresh)
 
 ### filtering for contaminants and reverse
 print("Filtering for contaminants and reverse")
 modTable<-jFiltContRev(modTable )
 
+### examine distribution of reversed protein abundance versus real protein abundance
+pdf(paste0(maxQuantDir,"Density_distribution_reverseVSproteins.pdf"), width=6, height=6)
+	idat<-data.frame(cond=c(rep("Reversed",length(as.vector(revDats))), rep("Protein", length(as.vector(data.matrix(modTable[,intenColID]))))), log2Abundance=c(log2(as.vector(revDats)), log2(as.vector(data.matrix(modTable[,intenColID])))))
+	# Density plots with semi-transparent fill
+	gp<-ggplot(idat, aes(x=log2Abundance, fill=cond)) + geom_density(alpha=.3) +geom_vline(data=idat, aes(xintercept=log2(revThresh)), linetype="dashed", size=1, colour="red")+ labs(x = "Log2 Abundance", y = "Density")+ theme(legend.title = element_blank()) 
+	print(gp)
+	
+dev.off()
 
-sampDatCols<- unique(sort(unlist(lapply(expSetup$Name,function(y){ grep(y,colnames(modTable))}))))
-intenColID<-intersect(grep(colPrefix,colnames(modTable)),sampDatCols)
-sampleNames<-gsub(colPrefix,"",colnames(modTable)[intenColID])
+
 
 ##transform to modDatList format
-modDatList<-list(rannot=modTable[,-intenColID], cannot=expSetup[sampleNames,],dat=data.matrix(modTable[,intenColID]) )
+## adding presence/absence matrix datP
+datP=data.matrix(modTable[,intenColID])>revThresh 
+colnames(datP)=paste0(colnames(datP),"Present")
+modDatList<-list(rannot=modTable[,-intenColID], cannot=expSetup[sampleNames,],dat=data.matrix(modTable[,intenColID]), datP=datP)
 colnames(modDatList$dat)=gsub(colPrefix,"",colnames(modDatList$dat))
 
 
-boxplot(modDatList$dat) 
-colSums(modDatList$dat)
 
-### log2 a
+### log2 transformation and filter
 modDatList<-jlog2(modDatList)
 modDatList.s<-jFilterValid(modDatList,prop=1)  
 
+modDatList.s$dat0<-modDatList.s$dat
 
 ## Within batch/run normalization for labeled data
 ## Adjust total intensity between runs
-modDatList.s$dat0<-modDatList.s$dat
-
 ## watch out if batches are from completely different conditions
 ## normalize batches, col and row 3 times
 for(a in 1:3){
@@ -83,40 +105,23 @@ for(a in 1:3){
 	modDatList.s$dat<-jMedianNormBatchRow(modDatList.s$dat, batch=modDatList.s$cannot$Run)
 }
 	
-### boxplot
-boxplot(modDatList.s$dat,  main="Batch normed") 
-pheno=modDatList.s$cannot
-fileNameAdd=paste(datType,perspective,modname,sep="_")
-
-### additional loess normalization, skip if the number of proteins are low!
+	
+### additional loess normalization, skip if the number of proteins are low due to assumption
 if(nrow(modDatList.s$dat)>=100){
 	normalization2use="loess"
-	normeddat<-jNormalizeLoess(dat4stat=modDatList.s$dat, dat4statFull=data.frame(modDatList.s$rannot,modDatList.s$dat))
+	normeddat<-jNormalizeLoess(dat4stat=modDatList.s$dat, dat4statFull=data.frame(modDatList.s$rannot,modDatList.s$dat,modDatList.s$datP))
 	dat4stat<-normeddat[[1]]; dat4statFull<-normeddat[[2]]; rm(normeddat)
 }else{
 	normalization2use=""
 	dat4stat=modDatList.s$dat
-	dat4statFull=data.frame(modDatList.s$rannot,modDatList.s$dat)
+	dat4statFull=data.frame(modDatList.s$rannot,modDatList.s$dat,modDatList.s$datP)
 }
 
-		
-		
-###  for AMR!
-
+	
+###  for AMR proteins 
  amrs<-sapply(strsplit(dat4statFull$Majority.protein.IDs,";"), function(y){
 	length(y)!=length(grep("gi|^O[0-9]|^P[0-9]|^Q[0-9]",y))
  })
-
- 
-amrDat<-dat4statFull[amrs,]
-amrDat$Majority.protein.IDs2<-gsub("CampylobacterjejunigyrAconferringresistancetofluoroquinolones","gyrA mutant",
-	gsub("tetO;gi\\|756095536\\|gb\\|AJK83773.1\\|","tetO",
-	amrDat$Majority.protein.IDs))
-amrDat$Majority.protein.IDs2<-sapply(strsplit(amrDat$Majority.protein.IDs2,";"), function(y)y[length(y)])
-
-amrDat.s<-data.matrix(amrDat[,colnames(amrDat)%in%c(pheno$Name, paste0("X",pheno$Name))])
-colnames(amrDat.s)=gsub("^X","",colnames(amrDat.s))
-
 
 
 ##################
@@ -125,18 +130,19 @@ colnames(amrDat.s)=gsub("^X","",colnames(amrDat.s))
 amrDat<-dat4statFull[which(amrs),]
 amrDat$Majority.protein.IDs<-gsub("tetO;gi\\|756095536\\|gb\\|AJK83773.1\\|", "gi\\|756095536\\|gb\\|AJK83773.1\\;tetO",gsub("Q03470","gyrA",gsub("CampylobacterjejunigyrAconferringresistancetofluoroquinolones","gyrA mutant",amrDat$Majority.protein.IDs)))
 
+### clean ID
 amrDat$Majority.protein.IDs2<-sapply(strsplit(amrDat$Majority.protein.IDs,";"), function(y)y[length(y)])
 rownames(amrDat)=amrDat$Majority.protein.IDs2
 
+### presence absence
+amrDatPresent<-amrDat[,grep("Present",colnames(amrDat))]
+colnames(amrDatPresent)<-gsub("Reporter\\.intensity\\.corrected\\.|Present","",colnames(amrDatPresent))
 
 amrDat.s<-data.matrix(amrDat[,colnames(amrDat)%in%c(pheno$Name, paste0("X",pheno$Name))])
 colnames(amrDat.s)=gsub("^X","",colnames(amrDat.s))
 amrDat.s<-amrDat.s[, order(pheno$groupid)]
 
 
-	
-	
-	
 #reordering columns
 amrDat.s2<-amrDat.s[,c(13:24,1:12)] ## 6 rep, LM
 snames=gsub("i","",pheno[colnames(amrDat.s2),"groupid"])
@@ -152,7 +158,7 @@ amrDat.s3<-merge(data.frame(id=colnames(rgih$carpet),order=1:ncol(rgih$carpet)),
 #amrDat.s3<-merge(data.frame(id= gsub(" mutant","",colnames(rgih$carpet)),order=1:ncol(rgih$carpet)), data.frame(id=rownames(amrDat.s2),amrDat.s2), all=T)
 amrDat.s3<-amrDat.s3[order(amrDat.s3$order),]
 colnames(amrDat.s3)=gsub("X|.1$","",colnames(amrDat.s3))
-amrDat.s3=amrDat.s3[nrow(amrDat.s3):1,]
+amrDat.s3<-amrDat.s3[nrow(amrDat.s3):1,]
 amrDat.s3Annot<-amrDat.s3[,c( grep("Protein.IDs",colnames(amrDat.s3)):ncol(amrDat.s3))]
 
 amrDat.s4<-amrDat.s3[,-c(1,2, grep("Protein.IDs",colnames(amrDat.s3)):ncol(amrDat.s3))]
@@ -161,15 +167,8 @@ rownames(amrDat.s4)=amrDat.s3[,1]
 amrDat.s4<-data.matrix(amrDat.s4)
 amrDat.s40<-amrDat.s4;amrDat.s40[is.na(amrDat.s40)]=0
 
-
-### using! remove those with Sequence.coverage.... <20% 
+### remove those with Sequence.coverage.... <20% 
 amrDat.s5<-amrDat.s4[is.na(amrDat.s3Annot$Unique...razor.sequence.coverage)|amrDat.s3Annot$Sequence.coverage....>20,]
-
-
-mean(amrDat.s5["tetO",13:24])-mean(amrDat.s5["tetO",1:12])
-#[1] 3.149055
-t.test(amrDat.s5["tetO",13:24], amrDat.s5["tetO",1:12], alternative="greater")
-# 1.265e-12
 
 
 ### anova & Tukeys
@@ -193,8 +192,8 @@ tukProt[which(aovpProt<=0.05)]
 tukProtPadj<-sapply(tukProt[which(aovpProt<=0.05)],function(y){y[,"p adj"]})
 tukProtDiff<-sapply(tukProt[which(aovpProt<=0.05)],function(y){y[,"diff"]})
 
-write.table(t(tukProtPadj), file="Table_proteinAbundance_tukeys_padj.txt",row.names=T, col.names=T, quote=F, sep="\t")
-write.table(t(tukProtDiff), file="Table_proteinAbundance_tukeys_Diff.txt",row.names=T, col.names=T, quote=F, sep="\t")
+write.table(t(tukProtPadj), file=paste0(maxQuantDir,"Table_proteinAbundance_tukeys_padj.txt"),row.names=T, col.names=T, quote=F, sep="\t")
+write.table(t(tukProtDiff), file=paste0(maxQuantDir,"Table_proteinAbundance_tukeys_Diff.txt"),row.names=T, col.names=T, quote=F, sep="\t")
 
 
 siglab<-ifelse(aovpBHProt<=0.05, "*",ifelse(aovpProt<=0.05, "^","")) ### * for significant (<=0.05) with one way ANOVA after BH adjustment; ^ for raw p<0.05, but not significant after adjustment.
@@ -222,35 +221,41 @@ pvaluesProt1512<-apply(amrDat.s5,1, function(y, z=pheno[colnames(amrDat.s5),"gro
  
  
  
-#### using!
-pdf("Fig1B_heatmap_AMR_protein_levels_novariants_size8_reorder_matchRGI_rmvScov20_201807.pdf", width=8)	
-	roundi= 0
-	snames=gsub("i","",pheno[colnames(amrDat.s5),"groupid"])
-	heatmap.2(amrDat.s5, distfun=dist.pear, keysize=0.9, key.title="log2 Int.",
-		ColSideColors= cbbPalette[factor(pheno[colnames(amrDat.s5),"groupid"])], 
-		trace="none", scale="none", 
-		labRow=paste(rownames(amrDat.s5), siglab),
-		labCol=paste(ifelse(snames=="1512","01-","00-"),snames, sep=""), margins=c(7,9), 
-		cexCol=1.2,cexRow=1.2,
-		cellnote=round(amrDat.s5,roundi),
-		  notecex=1.0,
-		  notecol="black",
-		 sepwidth=c(0.1,0.05),sepcolor=c("white"),colsep=c(6,12,18),
-		main="Protein levels matching RGI order", col= heatmapcol,
-		breaks=heatmapcolVal,
-	 dendrogram = "none", Colv = FALSE, Rowv = FALSE)
-
-	heatmap.2(amrDat.s5, distfun=dist.pear, keysize=0.9, key.title="log2 Int.",
+#### Fig 1B
+amrDatPresent.s5=amrDatPresent[rownames(amrDat.s5), colnames(amrDat.s5)]
+pdf(paste0(maxQuantDir,"Fig1B_heatmap_AMR_protein_levels_novariants_size8_reorder_matchRGI_rmvScov20_201807.pdf"), width=8)	
+	for ( jj in 1:2){
+		roundi= 0
+		snames=gsub("i","",pheno[colnames(amrDat.s5),"groupid"])
+		heatmap.2(amrDat.s5, distfun=dist.pear, keysize=0.9, key.title="log2 Int.",
 			ColSideColors= cbbPalette[factor(pheno[colnames(amrDat.s5),"groupid"])], 
 			trace="none", scale="none", 
 			labRow=paste(rownames(amrDat.s5), siglab),
 			labCol=paste(ifelse(snames=="1512","01-","00-"),snames, sep=""), margins=c(7,9), 
 			cexCol=1.2,cexRow=1.2,
+			cellnote=round(amrDat.s5,roundi),
+			  notecex=1.0,
+			  notecol="black",
 			 sepwidth=c(0.1,0.05),sepcolor=c("white"),colsep=c(6,12,18),
 			main="Protein levels matching RGI order", col= heatmapcol,
+			breaks=heatmapcolVal,
 		 dendrogram = "none", Colv = FALSE, Rowv = FALSE)
-dev.off()
 
+		heatmap.2(amrDat.s5, distfun=dist.pear, keysize=0.9, key.title="log2 Int.",
+				ColSideColors= cbbPalette[factor(pheno[colnames(amrDat.s5),"groupid"])], 
+				trace="none", scale="none", 
+				labRow=paste(rownames(amrDat.s5), siglab),
+				labCol=paste(ifelse(snames=="1512","01-","00-"),snames, sep=""), margins=c(7,9), 
+				cexCol=1.2,cexRow=1.2,
+				 sepwidth=c(0.1,0.05),sepcolor=c("white"),colsep=c(6,12,18),
+				main="Protein levels matching RGI order", col= heatmapcol,
+			 dendrogram = "none", Colv = FALSE, Rowv = FALSE)
+			 
+		### This is set so when jj==2, it plots only abundance defined to be present according to the 95 percentile reversed protein abundance.
+		amrDat.s5[!(amrDatPresent.s5)]=NA	
+		heatmapcolVal=seq(12, 17.5,length=51)
+	}
+dev.off()
 
 
 
@@ -259,31 +264,73 @@ dev.off()
 #############################
 
 
-
 evi<-read.table(eviFile, sep="\t", header=T, quote = "", as.is=T)
 evidat<-evi[,grep("Reporter.intensity.corrected",colnames(evi))]
 expNames<- unique(evi$Experiment) # this is the number of replicates
 
+### getting revData for distribution screening
+revDatP<-evi[evi$Reverse=="+"&evi$Potential.contaminant!="+",]  ## saving revData
+revDatPs<- data.matrix(evidat[evi$Reverse=="+"&evi$Potential.contaminant!="+",])
+#revDatPs<-revDatPs[!duplicated(revDatP$Sequence),]
+
+
+datColNames=c("Reporter.intensity.corrected.0", "Reporter.intensity.corrected.1", "Reporter.intensity.corrected.2", "Reporter.intensity.corrected.3")
+eviMedInt<-apply(evi[,datColNames], 1, median, na.rm=T)
+
+
+### getting median abundance in each arrach for each reverse peptide and obtain the 95th percentile abundance per peptide length
+revThreshPercP=0.95
+tmp2<-aggregate(eviMedInt[evi$Reverse=="+"], list(evi$Length[evi$Reverse=="+"]),quantile,probs=revThreshPercP)
+tmp2<-cbind(tmp2,table(evi$Length[evi$Reverse=="+"]),log2abundance=log2(1+tmp2[,2]))
+	
+		
+### fitting abundance loess line for reversed peptides
+lo <- loess(x~Group.1, tmp2 ,span = 1, degree = 2); 
+tmp2pred <- predict(lo, data.frame( Group.1=as.numeric(names(table(evi$Length[evi$Reverse!="+"])))))
+names(tmp2pred)=as.numeric(names(table(evi$Length[evi$Reverse!="+"])))
+(tmp2predl2<-log2(1+tmp2pred))  ### log2 abundance thresholds (from reversed peptides) for varying peptide length
+tmp2predl2[c(min(which(is.nan(tmp2predl2))): length(tmp2predl2))]=0  ### making the rest of the lengths 0
+
+### visualizing the abundance thresholds determined w.r.t. peptide lengths & highlights higher reported abundance when peptide lengths are shorter
+pdf(paste0(maxQuantDir,"Scatter_peptide_scores_deltascores_reverse_vs_hits_Abundance.pdf"), width=6,height=6)
+	plot(jitter(evi$Length[evi$Reverse!="+"], 2),eviMedInt[evi$Reverse!="+" ], col="#F8766D",  pch=".", ylim=range(eviMedInt, na.rm=T), xlab="Peptide length", ylab="Median abundance of each peptide in an array")
+	points(jitter(evi$Length[evi$Reverse=="+"], 2),eviMedInt[evi$Reverse=="+"], col="skyblue3",pch=20)
+	lines(names(tmp2pred),tmp2pred, lwd=3,col="darkblue")
+	legend("topright", legend=c("Peptide", "Reversed"), col=c("#F8766D","skyblue3") , pch=20)
+dev.off()
+
+
+
+protDatP<-evi[evi$Reverse!="+" | evi$Potential.contaminant!="+",]  ## peptide data with reversed and contaminant filtered out.
 
 
 ### the few peptides only
 targetPep<-c("IMAIIPTTDFDESK","YHPHGDTAVYDALVR","YHPHGDIAVYDALVR","IALDNIDEVIALIK","IALDNIDK") 
-#targetPep<-c("YHPHGDIAVYDALVR","YHPHGDTAVYDALVR","IALDNIDK","IALDNIDEVIALIK","IMAIIPTTDFDESK") 
-#targetPep<-c("YHPHGDIAVYDALVR","IALDNIDK","IMAIIPTTDFDESK")
-evi.s<-evi[evi$Sequence%in% targetPep,]
+evi.s<-protDatP[protDatP$Sequence%in% targetPep,]
 pepl2i<-t(sapply(unique(evi.s$Sequence), toPeptideTable, dat0=evi.s, expNames=expNames))
 
-#pepl2i<-pepl2i[c(3,1,2),order((colnames(pepl2i)))]
 pepl2i<-pepl2i[,order((colnames(pepl2i)))]
 
-#pepColorder=c(4:9,1:3,10:12)#c("i1597","i6200","i0949","i1512")) ##  3 rep only
 pepColOrder=c(7:18,1:6,19:24)
 pepl2i<-pepl2i[targetPep,pepColOrder]#c("i1597","i6200","i0949","i1512")) ##  6 rep
 
 
+#### function to determine absence according to loess fitted 95 percentile
+jScreenAbs<-function(datMat, lengthThresholds){	
+	dimnames0 <- dimnames(datMat)
+	datMat <- cbind(thresh=lengthThresholds[as.character(nchar(rownames(datMat)))], datMat)
+	ret<-t(apply(datMat,1, function(y){
+		y[y< y[1]]=NA
+		y[-1]
+	}))
+	dimnames(ret)=dimnames0
+	ret
+}
+pepl2iAbs <- jScreenAbs(pepl2i, lengthThresholds=tmp2predl2)
+
 pepsname<-gsub("i","",pheno[colnames(pepl2i),"groupid"])
 
-pdf("Fig2_heatmap_AMR_peptide_levels_new_201807_scalematch.pdf", width=8, height=4)	
+pdf(paste0(maxQuantDir,"Fig2_heatmap_AMR_peptide_levels_new_201807_scalematch.pdf"), width=8, height=4)	
 	roundi= 0
 		heatmap.2(pepl2i, 
 		ColSideColors= cbbPalette[factor(pheno[colnames(pepl2i),"groupid"])], 
@@ -294,48 +341,35 @@ pdf("Fig2_heatmap_AMR_peptide_levels_new_201807_scalematch.pdf", width=8, height
 			  notecex=1.0,
 			  notecol="black",
 		main="Peptide log2 intensity: 3 examples for gyrA", col= heatmapcol,
-		breaks=heatmapcolVal,
+		#breaks=heatmapcolVal,
 		cexCol=1,cexRow=1,
 		sepwidth=c(0.1,0.05),sepcolor=c("white"),colsep=c(6,12,18),rowsep=c(1,3),
 		dendrogram = "none", Colv = FALSE, Rowv = FALSE, 
 		lhei = c(1.2,1.8))
 	
-	
-	 heatmap.2(pepl2i, 
-		ColSideColors= cbbPalette[factor(pheno[colnames(pepl2i),"groupid"])], 
+		### with absence filter
+		heatmap.2(pepl2iAbs, 
+		ColSideColors= cbbPalette[factor(pheno[colnames(pepl2iAbs),"groupid"])], 
 		trace="none", scale="none", 
-		labRow=rownames(pepl2i), 
+		labRow=rownames(pepl2iAbs), 
 		labCol=paste0(ifelse(pepsname=="1512","01-","00-"),pepsname), margins=c(5,10), 
+		  cellnote=round(pepl2iAbs,roundi),
+			  notecex=1.0,
+			  notecol="black",
 		main="Peptide log2 intensity: 3 examples for gyrA", col= heatmapcol,
+		#breaks=heatmapcolVal,
 		cexCol=1,cexRow=1,
-		sepwidth=c(0.1,0.05),
-         sepcolor=c("darkgray"),#,
-		colsep=c(6,12,18),
-		rowsep=c(1,3),
+		sepwidth=c(0.1,0.05),sepcolor=c("white"),colsep=c(6,12,18),rowsep=c(1,3),
 		dendrogram = "none", Colv = FALSE, Rowv = FALSE, 
 		lhei = c(1.2,1.8))
-		
+	
+
 dev.off()
 
-
 	
-		
-### all gyra peptides
-gyra<-evi[grep("CampylobacterjejunigyrAconferringresistancetofluoroquinolones|Q03470",evi$Proteins),] #Q03470
-unique(gyra$Sequence)
-pepl2i<-t(sapply(unique(gyra$Sequence), toPeptideTable, dat0=gyra, expNames=expNames))
-#pepl2i<-pepl2i[c(3,1,2),order((colnames(pepl2i)))]
-pepl2i<-pepl2i[,order((colnames(pepl2i)))]
-pepl2i<-pepl2i[,pepColOrder]#c("i1597","i6200","i0949","i1512"))
-pepsname<-gsub("i","",pheno[colnames(pepl2i),"groupid"])
-
-
-
-### filter for at least 50% sampels with data
-pepl2i2<- pepl2i[rowSums(!is.na(pepl2i))>=(0.5*ncol(pepl2i)),]
-
+			
 # ANOVA
-aovpList<-apply(pepl2i2, 1, function(y,grpid=pheno[colnames(pepl2i2),"groupid"]){
+aovpList<-apply(pepl2i, 1, function(y,grpid=pheno[colnames(pepl2i),"groupid"]){
 	tmp<-data.frame(y, grpid=factor(grpid))
 	res.aov<-aov(y~grpid, data=tmp)
 	p0<-summary(res.aov)[[1]][1,5]
@@ -348,9 +382,11 @@ tuk<-lapply(aovpList, function(y)y[[2]])
 tuk[aovp<=0.05]
 
 
+### two sided, compare i1597 to others
+id1597 <- pheno[colnames(pepl2i),"groupid"]=="i1597"
 for (pepname in targetPep){
 	cat(pepname, " ")
-	cat(t.test(pepl2i2[pepname,1:6],pepl2i2[pepname,7:ncol(pepl2i2)])$p.value , "\n")
+	cat(t.test(pepl2i[pepname,id1597],pepl2i[pepname,!id1597])$p.value , "\n")
 }
 #YHPHGDIAVYDALVR  0.002563197 
 #YHPHGDTAVYDALVR  7.444988e-05 
@@ -359,85 +395,18 @@ for (pepname in targetPep){
 #IMAIIPTTDFDESK  0.4801575 
 
 ### testing 1597 against others, one sided
-pvalues<-apply(pepl2i2,1, function(y, z=pheno[colnames(pepl2i2),"groupid"]=="i1597"){
+pvalues<-apply(pepl2i,1, function(y, z=id1597){
 	t.test(y[z],y[!z], alternative="greater")$p.value 
 
 })
+pvalues
+# IMAIIPTTDFDESK YHPHGDTAVYDALVR YHPHGDIAVYDALVR  IALDNIDEVIALIK        IALDNIDK 
+#  0.7599212596    0.9999627751    0.0012815985    0.9735774448    0.0009884423
 adjpvalues<-p.adjust(pvalues,method="BH")
 
 
-2^( mean(pepl2i2["YHPHGDIAVYDALVR",1:6], na.rm=T)- mean(pepl2i2["YHPHGDIAVYDALVR",7:24], na.rm=T)) # 12.69232
-2^( mean(pepl2i2["IALDNIDK",1:6], na.rm=T)- mean(pepl2i2["IALDNIDK",7:24], na.rm=T)) #13.03566
 
-
-
-### sequence to sort by location
-gyrA="MENIFSKDSDIELVDIENSIKSSYLDYSMSVIIGRALPDARDGLKPVHRRILYAMQNDEAKSRTDFVKSARIVGAVIGRYHPHGDIAVYDALVRMAQDFSMRYPSITGQGNFGSIDGDSAAAMRYTEAKMSKLSHELLKDIDKDTVDFVPNYDGSESEPDVLPSRVPNLLLNGSSGIAVGMATNIPPHSLNELIDGLLYLLDSKDASLEEIMQFIKGPDFPTGGIIYGKKGIIEAYRTGRGRVKVRAKTHIEKKTNKDVIVIDELPYQTNKARLIEQIAELVKEKQIEGISEVRDESNKEGIRVVIELKREAMSEIVLNNLFKSTTMESTFGVIMLAIYNKEPKIFSLLELLNLFLTHRKTVIIRRTIFELQKARARAHILEGLKIALDNIDKVIALIKNSSDNNTARDSLVAKFGLSELQANAILDMKLGRLTGLEREKIENELAELMKEIARLEEILKSETLLENLIRDELKEIRSKFDVPRITQIEDDYDDIDIEDLIPNENMVVTITHRGYIKRVPSKQYEKQKRGGKGKLAVTTYDDDFIESFFTANTHDTLMFVTDRGQLYWLKVYKIPEGSRTAKGKAVVNLINLQAEEKIMAIIPTTDFDESKSLCFFTKNGIVKRTNLSEYQNIRSVGVRAINLDENDELVTAIIVQRDEDEIFATGGEENLENQEIENLDDENLENEESVSTQGKMLFAVTKKGMCIKFPLAKVREIGRVSRGVTAIKFKEKNDELVGAVVIENDEQEILSISAKGIGKRTNAGEYRLQSRGGKGVICMKLTEKTKDLISVVIVDETMDLMALTSSGKMIRVDMQSIRKAGRNTSGVIVVNVENDEVVSIAKCPKEENDEDELSDENFGLDLQ"
-swissp="MENIFSKDSDIELVDIENSIKSSYLDYSMSVIIGRALPDARDGLKPVHRRILYAMQNDEAKSRTDFVKSARIVGAVIGRYHPHGDTAVYDALVRMAQDFSMRYPSITGQGNFGSIDGDSAAAMRYTEAKMSKLSHELLKDIDKDTVDFVPNYDGSESEPDVLPSRVPNLLLNGSSGIAVGMATNIPPHSLNELIDGLLYLLDNKDASLEEIMQFIKGPDFPTGGIIYGKKGIIEAYRTGRGRVKVRAKTHIEKKTNKDVIVIDELPYQTNKARLIEQIAELVKERQIEGISEVRDESNKEGIRVVIELKREAMSEIVLNNLFKSTTMESTFGVIMLAIHNKEPKIFSLLELLNLFLTHRKTVIIRRTIFELQKARARAHILEGLKIALDNIDEVIALIKNSSDNNTARDSLVAKFGLSELQANAILDMKLGRLTGLEREKIENELAELMKEIARLEEILKSETLLENLIRDELKEIRSKFDVPRITQIEDDYDDIDIEDLIPNENMVVTITHRGYIKRVPSKQYEKQKRGGKGKLAVTTYDDDFIESFFTANTHDTLMFVTDRGQLYWLKVYKIPEGSRTAKGKAVVNLINLQAEEKIMAIIPTTDFDESKSLCFFTKNGIVKRTNLSEYQNIRSVGVRAINLDENDELVTAIIVQRDEDEIFATGGEENLENQEIENLDDENLENEESVSTQGKMLFAVTKKGMCIKFPLAKVREIGRVSRGVTAIKFKEKNDELVGAVVIENDEQEILSISAKGIGKRTNAGEYRLQSRGGKGVICMKLTEKTKDLISVVIVDETMDLMALTSSGKMIRVDMQSIRKAGRNTSGVIVVNVENDEVVSIAKCPKEENDEDELSDENFGLDLQ"
-
-aaposs<-t(sapply(rownames(pepl2i2), function(y){
-	tmp<-c(nchar(strsplit(gyrA, y)[[1]][1]), nchar(strsplit(swissp, y)[[1]][1]))
-	c(ifelse(tmp[1]==nchar(gyrA), NA, tmp[1]), ifelse(tmp[2]==nchar(swissp), NA, tmp[2]))
-}))+1
-colnames(aaposs)=c("card","swissp")
-
-### both:1 black; CARD only :2 red; swissprot only:4 blue
-aawhich<-apply(aaposs,1,function(y){
-	if(sum(is.na(y))==0){
-		ret=1
-	}else{
-		ret=which(!is.na(y))+1
-		ret=ifelse(ret==3,4,2)
-	}
-	ret})
-	
-	
-aapos<-apply(aaposs, 1, min, na.rm=T)
-aaorder<-order(aapos)
-
-pdf("FigS4_heatmap_AMR_peptide_levels_gyra_filt50perc_201807_sortedByLocation.pdf", width=8, height=6.2)	
-roundi= 0
-heatmap.2(pepl2i2[aaorder,], distfun=dist.pear, 
-	ColSideColors= cbbPalette[factor(pheno[colnames(pepl2i2),"groupid"])], 
-	trace="none", scale="none", 
-	labRow=paste(rownames(pepl2i2), ifelse(aovpBH<=0.05, "*",ifelse(aovp<=0.05, "^","")))[aaorder],
-	colRow=aawhich[aaorder], 
-	labCol=paste0(ifelse(pepsname=="1512","01-","00-"),pepsname), margins=c(5,14), 
-	  cellnote=round(pepl2i2[aaorder,],roundi),
-		  notecex=0.9,
-		  notecol="black",
-	sepwidth=c(0.2, 0.1),sepcolor=c("white"),colsep=c(6,12,18),rowsep=c(5,7,20,22),
-	main="Peptide log2 intensity for gyrA 50%filt", 
-	col= heatmapcol,
-	breaks=heatmapcolVal,
-	cexCol=1,cexRow=1,
-	dendrogram = "none", Colv = FALSE, Rowv = FALSE)
-dev.off()
-
-
-
-###My order
-aaposMine=aapos+5
-aaposMine[targetPep[1:4]]=1:4
-aaorderMine<-order(aaposMine)
-pdf("heatmap_AMR_peptide_levels_gyra_filt50perc_201807_sortedByLocation_highlight.pdf", width=8, height=6.2)	
-	roundi= 0
-	heatmap.2(pepl2i2[aaorderMine,], distfun=dist.pear, 
-		ColSideColors= cbbPalette[factor(pheno[colnames(pepl2i2),"groupid"])], 
-		trace="none", scale="none", 
-		labRow=paste(rownames(pepl2i2), ifelse(aovpBH<=0.05, "*",ifelse(aovp<=0.05, "^","")))[aaorderMine],
-		colRow=aawhich[aaorderMine], 
-		labCol=paste0(ifelse(pepsname=="1512","01-","00-"),pepsname), margins=c(5,14), 
-		  cellnote=round(pepl2i2[aaorderMine,],roundi),
-			  notecex=0.9,
-			  notecol="black",
-		sepwidth=c(0.2, 0.05),sepcolor=c("white"),colsep=c(6,12,18),rowsep=c(2,4),
-		main="Peptide log2 intensity for gyrA 50%filt", 
-		col= heatmapcol,
-		breaks=heatmapcolVal,
-		cexCol=1,cexRow=1,
-		dendrogram = "none", Colv = FALSE, Rowv = FALSE)
-dev.off()
-
+2^( mean(pepl2i["YHPHGDIAVYDALVR",id1597], na.rm=T)- mean(pepl2i["YHPHGDIAVYDALVR",!id1597], na.rm=T)) # 12.69232
+2^( mean(pepl2i["IALDNIDK",id1597], na.rm=T)- mean(pepl2i["IALDNIDK",!id1597], na.rm=T)) #13.03566
 
 
